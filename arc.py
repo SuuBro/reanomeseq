@@ -24,8 +24,6 @@ class Arc(monome.ArcApp):
         span = end-start
         val = (value / self.maxVal * span) + start
 
-        print(f'Ring: {ring} Val: {val}')
-
         values = [0] * 64
         for i in range(start, int(val)+1):
             values[i] = 15
@@ -38,13 +36,10 @@ class Arc(monome.ArcApp):
         self.arc.ring_map(ring, offset)
 
     def on_arc_delta(self, ring, delta):
-        print(f'Ring: {ring} Delta: {delta}')
-
         change = delta if (delta > 2 or delta < -2) else delta/2
 
         self.value[ring] = min(max(self.value[ring] + change, 0), self.maxVal)
         val = self.value[ring]
-        print(f'Ring: {ring} Value: {val}')
 
         self.set_value(ring, val)
 
