@@ -40,6 +40,7 @@ class GridApp(monome.GridApp):
         self.lowest_displayed_note = 48
         self.note_scale = None
         self.note_lookup = np.full((16,8), -1, dtype=int)
+        self.last_downpress_by_row = np.full((8), -1, dtype=int)
 
     def on_grid_ready(self):
         print('Grid ready.')
@@ -58,7 +59,23 @@ class GridApp(monome.GridApp):
 
 
     def on_grid_key(self, x: int, y: int, s: int):
-        print(f'on_grid_key {x} {y} {s}')
+        last_downpress = self.last_downpress_by_row[y].item()
+
+        if s == 1 and last_downpress >= 0:
+            start = min(x, last_downpress)
+            end = max(x, last_downpress)+1
+            self.create_note(start, end, y)
+            self.last_downpress_by_row[y] = -1
+        elif s == 0:
+            if last_downpress == x: # same key released
+                existing_note_idx = self.note_lookup[x,7-y].item()
+                if existing_note_idx >= 0:
+                    self.delete_note(existing_note_idx)
+                else:
+                    self.create_note(x, x+1, y)
+            self.last_downpress_by_row[y] = -1
+        elif s == 1:
+            self.last_downpress_by_row[y] = x
 
 
     def render_notes(self, bpm: float, notes: List[Note]):
@@ -67,7 +84,7 @@ class GridApp(monome.GridApp):
 
         for note in notes:
             note_start_col = max(int(note.start / (bpm * self.zoom)), 0)
-            note_end_col = min(int(note.end / (bpm * self.zoom)), 15)
+            note_end_col = min(int(note.end / (bpm * self.zoom)), 16)
             note_row = note.pitch - self.lowest_displayed_note
 
             if note_end_col < 0 or note_start_col > 15 or note_row < 0 or note_row > 7:
@@ -96,6 +113,26 @@ class GridApp(monome.GridApp):
             previous_hash = hash
             await asyncio.sleep(0.05)
 
+    @reapy.inside_reaper()
+    def create_note(self, start: float, end: float, row: int):
+        track = RPR.GetSelectedTrack(0, 0)
+        media_item = RPR.GetTrackMediaItem(track, 0)
+        project = RPR.GetItemProjectContext(media_item)
+        _, bpm, _ = RPR.GetProjectTimeSignature2(project, 0, 0)
+        take = RPR.GetTake(media_item, 0)
+
+        startppqpos = self.earliest_displayed_time + (bpm * self.zoom * start)
+        endppqpos = self.earliest_displayed_time + (bpm * self.zoom * end)
+        pitch = (7-row) + self.lowest_displayed_note
+
+        RPR.MIDI_InsertNote(take, False, False, startppqpos, endppqpos, 0, pitch, 96, False)
+
+    @reapy.inside_reaper()
+    def delete_note(self, note_index: int):
+        track = RPR.GetSelectedTrack(0, 0)
+        media_item = RPR.GetTrackMediaItem(track, 0)
+        take = RPR.GetTake(media_item, 0)
+        RPR.MIDI_DeleteNote(take, note_index)
 
     @reapy.inside_reaper()
     def get_notes(self, track: any) -> Tuple[int, List[Note]]:
