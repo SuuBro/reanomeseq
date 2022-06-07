@@ -26,7 +26,7 @@ class Note():
 class GridView:
     def __init__(self, grid: Grid):
         self.grid = grid
-        self.zoom = 64
+        self.zoom = 2
         self.earliest_displayed_time = 0
         self.lowest_displayed_note = 48
         self.note_scale = None
@@ -34,8 +34,8 @@ class GridView:
     def render_notes(self, bpm: float, notes: List[Note]):
         self.grid.clear()
         for note in notes:
-            note_start_col = int(note.start / bpm)
-            note_end_col = int(note.end / bpm)
+            note_start_col = int(note.start / (bpm * self.zoom))
+            note_end_col = int(note.end / (bpm * self.zoom))
 
             if(note_end_col < 0):
                 continue # before display
@@ -70,16 +70,14 @@ async def reaper_loop(gridView: GridView):
         _, _, _, hash, hs = RPR.MIDI_GetTrackHash(track, True, "", 100)
 
         if hash == previous_hash:
-            await asyncio.sleep(0.5)
+            await asyncio.sleep(0.1)
             continue
 
         bpm, notes = get_notes(track)
         gridView.render_notes(bpm, notes)
-        for note in notes:
-            print(note.to_string())
 
         previous_hash = hash
-        await asyncio.sleep(0.1)
+        await asyncio.sleep(0.05)
 
 
 async def main():

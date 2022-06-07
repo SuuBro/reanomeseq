@@ -22,14 +22,17 @@ class Grid(monome.GridApp):
         print('Grid disconnected.')
 
     def clear(self):
+        if not self.ready:
+            return
         self.grid.led_all(0)
 
     def draw_note(self, start: int, end: int, row: int):
         if not self.ready:
             return
 
-        for x in range(start, end):
-            self.grid.led_set(x, 7-row, 15)
+        self.grid.led_level_set(start, 7-row, 15)
+        for x in range(start+1, end):
+            self.grid.led_level_set(x, 7-row, 4)
 
 
     def on_grid_key(self, x: int, y: int, s: int):
