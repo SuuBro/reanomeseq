@@ -11,6 +11,13 @@ from collections import deque
 from reapy import reascript_api as RPR
 from typing import List, Tuple
 
+GRID_HIEGHT = 8
+GRID_WIDTH = 16
+
+NOTE_START_BRIGHTNESS = 12
+NOTE_BRIGHTNESS = 7
+DIVIDER_BRIGHTNESS = 3
+
 class Note():
     def __init__(self, index: int, start: int, end: int, pitch: int, velocity: int, channel: int):
         self.index = index
@@ -39,9 +46,9 @@ class GridApp(monome.GridApp):
         self.earliest_displayed_time = 0
         self.lowest_displayed_note = 48
         self.note_scale = None
-        self.view = [[0]*8 for _ in range(16)]
-        self.note_lookup = np.full((16,8), -1, dtype=int)
-        self.last_downpress_by_row = np.full((8), -1, dtype=int)
+        self.view = [[0]*GRID_HIEGHT for _ in range(GRID_WIDTH)]
+        self.note_lookup = np.full((GRID_WIDTH,GRID_HIEGHT), -1, dtype=int)
+        self.last_downpress_by_row = np.full((GRID_HIEGHT), -1, dtype=int)
 
     def on_grid_ready(self):
         print('Grid ready')
@@ -54,10 +61,10 @@ class GridApp(monome.GridApp):
 
 
     def horizontal_scroll(self, delta: int):
-        self.earliest_displayed_time = max(self.earliest_displayed_time+delta, 0)
+        self.earliest_displayed_time = max(self.earliest_displayed_time+(delta), 0)
 
     def horizontal_offset(self):
-        return int(self.earliest_displayed_time / 4)
+        return self.earliest_displayed_time
 
     def on_grid_key(self, x: int, y: int, s: int):
         last_downpress = self.last_downpress_by_row[y].item()
@@ -84,23 +91,28 @@ class GridApp(monome.GridApp):
 
 
     def draw_note(self, start: int, end: int, row: int, starts_before_view: bool):
-        self.view[start][7-row] = 5 if starts_before_view else 15
+        self.view[start][GRID_HIEGHT-1-row] = NOTE_BRIGHTNESS if starts_before_view else NOTE_START_BRIGHTNESS
         for x in range(start+1, end):
-            self.view[x][7-row] = 5
+            self.view[x][GRID_HIEGHT-1-row] = NOTE_BRIGHTNESS
+
+    def divider_brightness(self, position):
+        if position % 16 == 0: return DIVIDER_BRIGHTNESS+2
+        if position % 4 == 0: return DIVIDER_BRIGHTNESS
+        return 0
 
     def render_notes(self, bpm: float, notes: List[Note]):
         offset = self.horizontal_offset()
-        self.note_lookup = np.full((16,8), -1, dtype=int)
-        self.view = [[1 if (i+offset)%4 == 0 else 0 for i in range(16)]] * 8
+        self.note_lookup = np.full((GRID_WIDTH,GRID_HIEGHT), -1, dtype=int)
+        self.view = [[self.divider_brightness(i+offset) for i in range(GRID_WIDTH)]] * GRID_HIEGHT
         self.view = [[row[i] for row in self.view] for i in range(len(self.view[0]))]
 
         for note in notes:
             note_start = note.start / (bpm * self.zoom) - offset
             note_start_col = int(max(note_start, 0))
-            note_end_col = int(min(note.end / (bpm * self.zoom) - offset, 16))
+            note_end_col = int(min(note.end / (bpm * self.zoom) - offset, GRID_WIDTH))
             note_row = note.pitch - self.lowest_displayed_note
 
-            if note_end_col < 0 or note_start_col > 15 or note_row < 0 or note_row > 7:
+            if note_end_col < 0 or note_start_col > GRID_WIDTH-1 or note_row < 0 or note_row > GRID_HIEGHT-1:
                 continue # before display
 
             for x in range(note_start_col,note_end_col):
@@ -139,7 +151,7 @@ class GridApp(monome.GridApp):
         _, bpm, _ = RPR.GetProjectTimeSignature2(project, 0, 0)
         take = RPR.GetTake(media_item, 0)
 
-        startppqpos = self.earliest_displayed_time + (bpm * self.zoom * start)
+        startppqpos = start * bpm * self.zoom
         endppqpos = self.earliest_displayed_time + (bpm * self.zoom * end)
         pitch = (7-row) + self.lowest_displayed_note
 
