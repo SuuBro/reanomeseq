@@ -6,6 +6,7 @@ import asyncio
 import monome
 import reapy
 import numpy as np
+import scales
 
 from collections import deque
 from reapy import reascript_api as RPR
@@ -49,8 +50,8 @@ class GridApp(monome.GridApp):
         self.zoom_index = 10
         self.zoom = ZOOM_LEVELS[self.zoom_index]
         self.earliest_displayed_time = 0
-        self.lowest_displayed_note = 48
-        self.note_scale = None
+        self.lowest_displayed_pitch_index = 48
+        self.available_pitches = [i for i in range(128)]
         self.view = [[0]*GRID_HEIGHT for _ in range(GRID_WIDTH)]
         self.note_lookup = np.full((GRID_WIDTH,GRID_HEIGHT), -1, dtype=int)
         self.last_downpress_by_row = np.full((GRID_HEIGHT), -1, dtype=int)
@@ -66,7 +67,7 @@ class GridApp(monome.GridApp):
 
 
     def apply_vertical_scroll(self, delta: int):
-        self.lowest_displayed_note = max(self.lowest_displayed_note+delta, 0)
+        self.lowest_displayed_pitch_index = min(max(self.lowest_displayed_pitch_index+delta, 0),128-GRID_HEIGHT)
 
     def apply_horizontal_scroll(self, delta: int):
         self.earliest_displayed_time = max(self.earliest_displayed_time+delta, 0)
@@ -123,7 +124,11 @@ class GridApp(monome.GridApp):
             note_start_col = int(max(note_start, 0))
             note_end = ((note.end + 1) / self.zoom) - self.earliest_displayed_time
             note_end_col = int(min(note_end, GRID_WIDTH))
-            note_row = note.pitch - self.lowest_displayed_note
+            try:
+                note_index = self.available_pitches.index(note.pitch)
+                note_row = note_index - self.lowest_displayed_pitch_index
+            except ValueError:
+                continue # not not displayed as not in scale
 
             #print(f'note.start: {note.start:.2f}  note.end: {note.end:.2f}  self.zoom: {self.zoom}  note_start: {note_start:.2f}   note_end: {note_end:.2f}')
 
@@ -176,7 +181,7 @@ class GridApp(monome.GridApp):
 
         startppqpos = (start+self.earliest_displayed_time) * self.zoom
         endppqpos = (end+self.earliest_displayed_time) * self.zoom
-        pitch = (GRID_HEIGHT-1-row) + self.lowest_displayed_note
+        pitch = self.available_pitches[self.lowest_displayed_pitch_index + (GRID_HEIGHT-1-row)]
 
         RPR.MIDI_InsertNote(take, False, False, startppqpos, endppqpos-1, 0, pitch, 96, False)
 
