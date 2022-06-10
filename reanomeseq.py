@@ -152,7 +152,7 @@ class GridApp(monome.GridApp):
         take = RPR.GetTake(media_item, 0)
 
         startppqpos = start * bpm * self.zoom
-        endppqpos = bpm * self.zoom * end
+        endppqpos = end * bpm * self.zoom
         pitch = (GRID_HEIGHT-1-row) + self.lowest_displayed_note
 
         RPR.MIDI_InsertNote(take, False, False, startppqpos, endppqpos, 0, pitch, 96, False)
