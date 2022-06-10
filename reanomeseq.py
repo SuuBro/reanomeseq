@@ -26,6 +26,67 @@ NUM_OCTAVES = 10
 ZOOM_LEVELS = [60, 60, 60, 120, 120, 120, 240, 240, 240, 480, 480, 480, 960, 960, 960]
 SCALES = ['chromatic', 'chromatic', 'chromatic', 'major', 'major', 'major', 'minor', 'minor', 'minor']
 
+LETTER_A = [[0,  0,  0, 15, 15,  0,  0,  0],
+            [0,  0, 15, 15, 15, 15,  0,  0],
+            [0,  0, 15,  0,  0, 15,  0,  0],
+            [0,  0, 15,  0,  0, 15,  0,  0],
+            [0,  0, 15, 15, 15, 15,  0,  0],
+            [0,  0, 15, 15, 15, 15,  0,  0],
+            [0,  0, 15,  0,  0, 15,  0,  0],
+            [0,  0, 15,  0,  0, 15,  0,  0]]
+
+LETTER_AS = [[ 0, 15, 15,  0,  0,  0,  0,  0],
+             [15, 15, 15, 15,  0, 15,  0, 15],
+             [15,  0,  0, 15, 15, 15, 15, 15],
+             [15,  0,  0, 15,  0, 15,  0, 15],
+             [15, 15, 15, 15, 15, 15, 15, 15],
+             [15, 15, 15, 15,  0, 15,  0, 15],
+             [15,  0,  0, 15,  0,  0,  0,  0],
+             [15,  0,  0, 15,  0,  0,  0,  0]]
+
+LETTER_B = [[0,  0, 15, 15, 15,  0,  0,  0],
+            [0,  0, 15,  0,  0, 15,  0,  0],
+            [0,  0, 15,  0,  0, 15,  0,  0],
+            [0,  0, 15,  0, 15,  0,  0,  0],
+            [0,  0, 15, 15, 15, 15,  0,  0],
+            [0,  0, 15,  0,  0, 15,  0,  0],
+            [0,  0, 15,  0,  0, 15,  0,  0],
+            [0,  0, 15, 15, 15,  0,  0,  0]]
+
+LETTER_C = [[0,  0, 15, 15, 15, 15,  0,  0 ],
+            [0,  0, 15, 15, 15, 15,  0,  0 ],
+            [0,  0, 15, 15,  0,  0,  0,  0 ],
+            [0,  0, 15, 15,  0,  0,  0,  0 ],
+            [0,  0, 15, 15,  0,  0,  0,  0 ],
+            [0,  0, 15, 15,  0,  0,  0,  0 ],
+            [0,  0, 15, 15, 15, 15,  0,  0 ],
+            [0,  0, 15, 15, 15, 15,  0,  0 ]]
+
+LETTER_CS = [[15, 15, 15, 15,  0,  0,  0,  0],
+             [15, 15, 15, 15,  0, 15,  0, 15],
+             [15, 15,  0,  0, 15, 15, 15, 15],
+             [15, 15,  0,  0,  0, 15,  0, 15],
+             [15, 15,  0,  0, 15, 15, 15, 15],
+             [15, 15,  0,  0,  0, 15,  0, 15],
+             [15, 15, 15, 15,  0,  0,  0,  0],
+             [15, 15, 15, 15,  0,  0,  0,  0]]
+
+NOTE_DISPLAY = {
+    0:  LETTER_C,
+    1:  LETTER_CS,
+    2: "D",
+    3: "D#",
+    4: "E",
+    5: "F",
+    6: "F#",
+    7: "G",
+    8: "G#",
+    9:  LETTER_A,
+    10: LETTER_AS,
+    11: LETTER_B
+}
+
+
 def clamp(v, minv, maxv):
     return max(min(maxv, v), minv)
 
@@ -61,8 +122,9 @@ class GridApp(monome.GridApp):
         self.zoom_index = 10
         self.zoom = ZOOM_LEVELS[self.zoom_index]
         self.earliest_displayed_time = 0
-        self.lowest_displayed_pitch_index = 48
+        self.lowest_displayed_pitch_index = 45
         self.held_note = -1
+        self.held_note_x = -1
         self.selected_scale_note = 'C'
         self.selected_scale_index = 0
         self.available_pitches = range(128)
@@ -126,9 +188,11 @@ class GridApp(monome.GridApp):
     def on_grid_key(self, x: int, y: int, s: int):
         if s == 1:
             self.held_note = self.y_to_pitch(y)
+            self.held_note_x = x
             print(f'{names_from_interval[self.held_note % 12]}{((self.held_note - self.held_note%12)//12)-1} ({self.held_note})')
         else:
             self.held_note = -1
+            self.held_note_x = -1
 
         last_downpress = self.last_downpress_by_row[y].item()
 
@@ -201,8 +265,15 @@ class GridApp(monome.GridApp):
 
 
     def render(self):
-        self.grid.led_level_map(0, 0, [[row[i] for row in self.view[:8]] for i in range(len(self.view[:8][0]))])
-        self.grid.led_level_map(8, 0, [[row[i] for row in self.view[8:]] for i in range(len(self.view[8:][0]))])
+        if self.held_note_x >= 0 and self.held_note_x >= GRID_WIDTH // 2:
+            self.grid.led_level_map(0, 0, NOTE_DISPLAY[self.held_note % 12])
+        else:
+            self.grid.led_level_map(0, 0, [[row[i] for row in self.view[:8]] for i in range(len(self.view[:8][0]))])
+
+        if self.held_note_x >= 0 and self.held_note_x < GRID_WIDTH // 2:
+            self.grid.led_level_map(8, 0, NOTE_DISPLAY[self.held_note % 12])
+        else:
+            self.grid.led_level_map(8, 0, [[row[i] for row in self.view[8:]] for i in range(len(self.view[8:][0]))])
 
 
     async def reaper_loop(self):
