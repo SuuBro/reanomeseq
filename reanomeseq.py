@@ -29,6 +29,11 @@ SCALES = ['chromatic', 'chromatic', 'chromatic', 'major', 'major', 'major', 'min
 def clamp(v, minv, maxv):
     return max(min(maxv, v), minv)
 
+def closest_index(array, value):
+    array = np.asarray(array)
+    return (np.abs(array - value)).argmin()
+
+
 class Note():
     def __init__(self, index: int, start: int, end: int, pitch: int, velocity: int, channel: int):
         self.index = index
@@ -60,6 +65,7 @@ class GridApp(monome.GridApp):
         self.held_note = -1
         self.selected_scale_note = 'C'
         self.selected_scale_index = 0
+        self.available_pitches = range(128)
         self.view = [[0]*GRID_HEIGHT for _ in range(GRID_WIDTH)]
         self.note_lookup = np.full((GRID_WIDTH,GRID_HEIGHT), -1, dtype=int)
         self.last_downpress_by_row = np.full((GRID_HEIGHT), -1, dtype=int)
@@ -78,7 +84,6 @@ class GridApp(monome.GridApp):
     def set_scale(self, delta: int):
         if self.held_note >= 0:
             self.selected_scale_note = names_from_interval[self.held_note % 12]
-            print(f'Selected note {self.selected_scale_note}')
 
         self.selected_scale_index = clamp(self.selected_scale_index+delta, 0, len(SCALES)-1)
         print(f'Selected scale {self.selected_scale_note} {SCALES[self.selected_scale_index]}')
@@ -90,8 +95,18 @@ class GridApp(monome.GridApp):
             for octave in range(NUM_OCTAVES):
                 for semitone in semitones:
                     pitches.append((octave * 12) + semitone.semitones_above_middle_c)
+
+        tracking_note = self.held_note if self.held_note >= 0 else self.y_to_pitch(4)
+        orig_pos = closest_index(tracking_note, self.available_pitches) - self.lowest_displayed_pitch_index
+
         self.available_pitches = pitches
         self.last_downpress_by_row = np.full((GRID_HEIGHT), -1, dtype=int)
+
+        # re-position the view so that changing scale is less disorientiing
+        new_pos = closest_index(tracking_note, self.available_pitches) - self.lowest_displayed_pitch_index
+        diff = orig_pos - new_pos
+        self.lowest_displayed_pitch_index -= diff
+
 
     def apply_vertical_scroll(self, delta: int):
         self.lowest_displayed_pitch_index = clamp(self.lowest_displayed_pitch_index+delta, 0, len(self.available_pitches)-GRID_HEIGHT)
@@ -105,10 +120,13 @@ class GridApp(monome.GridApp):
         self.zoom_index = np.clip(self.zoom_index - delta, 0, len(ZOOM_LEVELS)-1)
         self.zoom = ZOOM_LEVELS[self.zoom_index]
 
+    def y_to_pitch(self, y: int):
+        return self.available_pitches[self.lowest_displayed_pitch_index + (GRID_HEIGHT-1-y)]
 
     def on_grid_key(self, x: int, y: int, s: int):
         if s == 1:
-            self.held_note = self.available_pitches[self.lowest_displayed_pitch_index + (GRID_HEIGHT-1-y)]
+            self.held_note = self.y_to_pitch(y)
+            print(f'{names_from_interval[self.held_note % 12]}{((self.held_note - self.held_note%12)//12)-1} ({self.held_note})')
         else:
             self.held_note = -1
 
@@ -214,7 +232,7 @@ class GridApp(monome.GridApp):
 
         startppqpos = (start+self.earliest_displayed_time) * self.zoom
         endppqpos = (end+self.earliest_displayed_time) * self.zoom
-        pitch = self.available_pitches[self.lowest_displayed_pitch_index + (GRID_HEIGHT-1-row)]
+        pitch = self.y_to_pitch(row)
 
         RPR.MIDI_InsertNote(take, False, False, startppqpos, endppqpos-1, 0, pitch, 96, False)
 
