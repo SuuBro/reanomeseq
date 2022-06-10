@@ -11,7 +11,7 @@ from collections import deque
 from reapy import reascript_api as RPR
 from typing import List, Tuple
 
-GRID_HIEGHT = 8
+GRID_HEIGHT = 8
 GRID_WIDTH = 16
 
 NOTE_START_BRIGHTNESS = 12
@@ -46,9 +46,9 @@ class GridApp(monome.GridApp):
         self.earliest_displayed_time = 0
         self.lowest_displayed_note = 48
         self.note_scale = None
-        self.view = [[0]*GRID_HIEGHT for _ in range(GRID_WIDTH)]
-        self.note_lookup = np.full((GRID_WIDTH,GRID_HIEGHT), -1, dtype=int)
-        self.last_downpress_by_row = np.full((GRID_HIEGHT), -1, dtype=int)
+        self.view = [[0]*GRID_HEIGHT for _ in range(GRID_WIDTH)]
+        self.note_lookup = np.full((GRID_WIDTH,GRID_HEIGHT), -1, dtype=int)
+        self.last_downpress_by_row = np.full((GRID_HEIGHT), -1, dtype=int)
 
     def on_grid_ready(self):
         print('Grid ready')
@@ -91,9 +91,9 @@ class GridApp(monome.GridApp):
 
 
     def draw_note(self, start: int, end: int, row: int, starts_before_view: bool):
-        self.view[start][GRID_HIEGHT-1-row] = NOTE_BRIGHTNESS if starts_before_view else NOTE_START_BRIGHTNESS
+        self.view[start][GRID_HEIGHT-1-row] = NOTE_BRIGHTNESS if starts_before_view else NOTE_START_BRIGHTNESS
         for x in range(start+1, end):
-            self.view[x][GRID_HIEGHT-1-row] = NOTE_BRIGHTNESS
+            self.view[x][GRID_HEIGHT-1-row] = NOTE_BRIGHTNESS
 
     def divider_brightness(self, position):
         if position % 16 == 0: return DIVIDER_BRIGHTNESS+2
@@ -102,8 +102,8 @@ class GridApp(monome.GridApp):
 
     def render_notes(self, bpm: float, notes: List[Note]):
         offset = self.horizontal_offset()
-        self.note_lookup = np.full((GRID_WIDTH,GRID_HIEGHT), -1, dtype=int)
-        self.view = [[self.divider_brightness(i+offset) for i in range(GRID_WIDTH)]] * GRID_HIEGHT
+        self.note_lookup = np.full((GRID_WIDTH,GRID_HEIGHT), -1, dtype=int)
+        self.view = [[self.divider_brightness(i+offset) for i in range(GRID_WIDTH)]] * GRID_HEIGHT
         self.view = [[row[i] for row in self.view] for i in range(len(self.view[0]))]
 
         for note in notes:
@@ -112,7 +112,7 @@ class GridApp(monome.GridApp):
             note_end_col = int(min(note.end / (bpm * self.zoom) - offset, GRID_WIDTH))
             note_row = note.pitch - self.lowest_displayed_note
 
-            if note_end_col < 0 or note_start_col > GRID_WIDTH-1 or note_row < 0 or note_row > GRID_HIEGHT-1:
+            if note_end_col < 0 or note_start_col > GRID_WIDTH-1 or note_row < 0 or note_row > GRID_HEIGHT-1:
                 continue # before display
 
             for x in range(note_start_col,note_end_col):
@@ -152,8 +152,8 @@ class GridApp(monome.GridApp):
         take = RPR.GetTake(media_item, 0)
 
         startppqpos = start * bpm * self.zoom
-        endppqpos = self.earliest_displayed_time + (bpm * self.zoom * end)
-        pitch = (7-row) + self.lowest_displayed_note
+        endppqpos = bpm * self.zoom * end
+        pitch = (GRID_HEIGHT-1-row) + self.lowest_displayed_note
 
         RPR.MIDI_InsertNote(take, False, False, startppqpos, endppqpos, 0, pitch, 96, False)
 
