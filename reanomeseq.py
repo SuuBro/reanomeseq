@@ -18,6 +18,8 @@ NOTE_START_BRIGHTNESS = 12
 NOTE_BRIGHTNESS = 7
 DIVIDER_BRIGHTNESS = 3
 
+ZOOM_LEVELS = [60, 60, 60, 120, 120, 120, 240, 240, 240, 480, 480, 480, 960, 960, 960]
+
 class Note():
     def __init__(self, index: int, start: int, end: int, pitch: int, velocity: int, channel: int):
         self.index = index
@@ -42,7 +44,8 @@ class VaribrightGrid(monome.Grid):
 class GridApp(monome.GridApp):
     def __init__(self):
         super().__init__(VaribrightGrid())
-        self.zoom = 2
+        self.zoom_index = 10
+        self.zoom = ZOOM_LEVELS[self.zoom_index]
         self.earliest_displayed_time = 0
         self.lowest_displayed_note = 48
         self.note_scale = None
@@ -60,11 +63,15 @@ class GridApp(monome.GridApp):
         print('Grid disconnected')
 
 
-    def horizontal_scroll(self, delta: int):
+    def apply_horizontal_scroll(self, delta: int):
         self.earliest_displayed_time = max(self.earliest_displayed_time+(delta), 0)
 
-    def horizontal_offset(self):
-        return self.earliest_displayed_time
+    def apply_horizontal_zoom(self, delta: int):
+        if delta == 0:
+            return
+        self.zoom_index = min(max(self.zoom_index - delta, 0), len(ZOOM_LEVELS)-1)
+        self.zoom = ZOOM_LEVELS[self.zoom_index]
+
 
     def on_grid_key(self, x: int, y: int, s: int):
         last_downpress = self.last_downpress_by_row[y].item()
@@ -76,7 +83,7 @@ class GridApp(monome.GridApp):
                 existing_note_idx = self.note_lookup[i,7-y].item()
                 if existing_note_idx >= 0: # clash with existing note
                     return
-            self.create_note(start+self.horizontal_offset(), end+self.horizontal_offset(), y)
+            self.create_note(start, end, y)
             self.last_downpress_by_row[y] = -1
         elif s == 0:
             if last_downpress == x: # same key released
@@ -84,7 +91,7 @@ class GridApp(monome.GridApp):
                 if existing_note_idx >= 0:
                     self.delete_note(existing_note_idx)
                 else:
-                    self.create_note(x+self.horizontal_offset(), x+self.horizontal_offset()+1, y)
+                    self.create_note(x, x+1, y)
             self.last_downpress_by_row[y] = -1
         elif s == 1:
             self.last_downpress_by_row[y] = x
@@ -96,23 +103,25 @@ class GridApp(monome.GridApp):
             self.view[x][GRID_HEIGHT-1-row] = NOTE_BRIGHTNESS
 
     def divider_brightness(self, position):
-        if position % 16 == 0: return DIVIDER_BRIGHTNESS+2
-        if position % 4 == 0: return DIVIDER_BRIGHTNESS
+        if (position * self.zoom) % (240*8*8) == 0: return DIVIDER_BRIGHTNESS+2
+        if (position * self.zoom) % (240*8*2) == 0: return DIVIDER_BRIGHTNESS
         return 0
 
-    def render_notes(self, bpm: float, notes: List[Note]):
-        offset = self.horizontal_offset()
+    def render_notes(self, notes: List[Note]):
         self.note_lookup = np.full((GRID_WIDTH,GRID_HEIGHT), -1, dtype=int)
-        self.view = [[self.divider_brightness(i+offset) for i in range(GRID_WIDTH)]] * GRID_HEIGHT
+        self.view = [[self.divider_brightness(i+self.earliest_displayed_time) for i in range(GRID_WIDTH)]] * GRID_HEIGHT
         self.view = [[row[i] for row in self.view] for i in range(len(self.view[0]))]
 
         for note in notes:
-            note_start = note.start / (bpm * self.zoom) - offset
+            note_start = (note.start / self.zoom) - self.earliest_displayed_time
             note_start_col = int(max(note_start, 0))
-            note_end_col = int(min(note.end / (bpm * self.zoom) - offset, GRID_WIDTH))
+            note_end = (note.end / self.zoom) - self.earliest_displayed_time
+            note_end_col = int(min(note_end, GRID_WIDTH))
             note_row = note.pitch - self.lowest_displayed_note
 
-            if note_end_col < 0 or note_start_col > GRID_WIDTH-1 or note_row < 0 or note_row > GRID_HEIGHT-1:
+            print(f'note.start: {note.start:.2f}  note.end: {note.end:.2f}  self.zoom: {self.zoom}  note_start: {note_start:.2f}   note_end: {note_end:.2f}')
+
+            if note_end <= 0 or note_start > GRID_WIDTH-1 or note_row < 0 or note_row > GRID_HEIGHT-1:
                 continue # before display
 
             for x in range(note_start_col,note_end_col):
@@ -127,32 +136,34 @@ class GridApp(monome.GridApp):
     async def reaper_loop(self):
         previous_hash = ""
         previous_earliest_displayed_time = -1
+        previous_zoom = -1;
 
         while True:
             track = RPR.GetSelectedTrack(0, 0)
             _, _, _, hash, _ = RPR.MIDI_GetTrackHash(track, True, "", 100)
 
-            if hash == previous_hash and self.earliest_displayed_time == previous_earliest_displayed_time:
+            if hash == previous_hash \
+              and self.earliest_displayed_time == previous_earliest_displayed_time \
+              and self.zoom == previous_zoom:
                 await asyncio.sleep(0.1)
                 continue
 
-            bpm, notes = self.get_notes(track)
-            self.render_notes(bpm, notes)
+            notes = self.get_notes(track)
+            self.render_notes(notes)
 
             previous_hash = hash
             previous_earliest_displayed_time = self.earliest_displayed_time
+            previous_zoom = self.zoom
             await asyncio.sleep(0.1)
 
     @reapy.inside_reaper()
     def create_note(self, start: float, end: float, row: int):
         track = RPR.GetSelectedTrack(0, 0)
         media_item = RPR.GetTrackMediaItem(track, 0)
-        project = RPR.GetItemProjectContext(media_item)
-        _, bpm, _ = RPR.GetProjectTimeSignature2(project, 0, 0)
         take = RPR.GetTake(media_item, 0)
 
-        startppqpos = start * bpm * self.zoom
-        endppqpos = end * bpm * self.zoom
+        startppqpos = (start+self.earliest_displayed_time) * self.zoom
+        endppqpos = (end+self.earliest_displayed_time) * self.zoom
         pitch = (GRID_HEIGHT-1-row) + self.lowest_displayed_note
 
         RPR.MIDI_InsertNote(take, False, False, startppqpos, endppqpos, 0, pitch, 96, False)
@@ -167,8 +178,6 @@ class GridApp(monome.GridApp):
     @reapy.inside_reaper()
     def get_notes(self, track: any) -> Tuple[int, List[Note]]:
         media_item = RPR.GetTrackMediaItem(track, 0)
-        project = RPR.GetItemProjectContext(media_item)
-        _, bpm, _ = RPR.GetProjectTimeSignature2(project, 0, 0)
         take = RPR.GetTake(media_item, 0)
         _, _, n, _, _  = RPR.MIDI_CountEvts(take, 0, 0, 0)
 
@@ -177,7 +186,7 @@ class GridApp(monome.GridApp):
             _, take, i, _, _, start, end, chan, pitch, vel = RPR.MIDI_GetNote(take, i, False, False, 0, 1, 0, 0, 0)
             notes.append(Note(i, start, end, pitch, vel, chan))
 
-        return bpm, notes
+        return notes
 
 
 class Arc(monome.ArcApp):
@@ -227,8 +236,11 @@ class Arc(monome.ArcApp):
 
         self.set_value(ring, val)
 
+        if(ring == 2):
+            self.grid.apply_horizontal_scroll(change)
+
         if(ring == 3):
-            self.grid.horizontal_scroll(change)
+            self.grid.apply_horizontal_zoom(change)
 
 
     def on_arc_key(self, ring, s):
