@@ -107,11 +107,12 @@ class GridApp(monome.GridApp):
         if (position * self.zoom) % (240*8*2) == 0: return DIVIDER_BRIGHTNESS
         return 0
 
-    def render_notes(self, notes: List[Note]):
-        self.note_lookup = np.full((GRID_WIDTH,GRID_HEIGHT), -1, dtype=int)
+    def update_view_with_notes(self, track: any):
         self.view = [[self.divider_brightness(i+self.earliest_displayed_time) for i in range(GRID_WIDTH)]] * GRID_HEIGHT
         self.view = [[row[i] for row in self.view] for i in range(len(self.view[0]))]
 
+        self.note_lookup = np.full((GRID_WIDTH,GRID_HEIGHT), -1, dtype=int)
+        notes = self.get_notes(track)
         for note in notes:
             note_start = (note.start / self.zoom) - self.earliest_displayed_time
             note_start_col = int(max(note_start, 0))
@@ -129,6 +130,7 @@ class GridApp(monome.GridApp):
 
             self.draw_note(note_start_col, note_end_col, note_row, note_start < 0)
 
+    def render(self):
         self.grid.led_level_map(0, 0, [[row[i] for row in self.view[:8]] for i in range(len(self.view[:8][0]))])
         self.grid.led_level_map(8, 0, [[row[i] for row in self.view[8:]] for i in range(len(self.view[8:][0]))])
 
@@ -148,8 +150,8 @@ class GridApp(monome.GridApp):
                 await asyncio.sleep(0.1)
                 continue
 
-            notes = self.get_notes(track)
-            self.render_notes(notes)
+            self.update_view_with_notes(track)
+            self.render()
 
             previous_hash = hash
             previous_earliest_displayed_time = self.earliest_displayed_time
