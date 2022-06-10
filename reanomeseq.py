@@ -10,6 +10,7 @@ import scales
 
 from collections import deque
 from reapy import reascript_api as RPR
+from scales import names_from_interval
 from typing import List, Tuple
 
 GRID_HEIGHT = 8
@@ -21,7 +22,12 @@ DIVIDER_BRIGHTNESS = 3
 PLAY_POS_BRIGHTNESS_LOW =  10
 PLAY_POS_BRIGHTNESS_HIGH =  15
 
+NUM_OCTAVES = 10
 ZOOM_LEVELS = [60, 60, 60, 120, 120, 120, 240, 240, 240, 480, 480, 480, 960, 960, 960]
+SCALES = ['chromatic', 'chromatic', 'chromatic', 'major', 'major', 'major', 'minor', 'minor', 'minor']
+
+def clamp(v, minv, maxv):
+    return max(min(maxv, v), minv)
 
 class Note():
     def __init__(self, index: int, start: int, end: int, pitch: int, velocity: int, channel: int):
@@ -51,10 +57,13 @@ class GridApp(monome.GridApp):
         self.zoom = ZOOM_LEVELS[self.zoom_index]
         self.earliest_displayed_time = 0
         self.lowest_displayed_pitch_index = 48
-        self.available_pitches = [i for i in range(128)]
+        self.held_note = -1
+        self.selected_scale_note = 'C'
+        self.selected_scale_index = 0
         self.view = [[0]*GRID_HEIGHT for _ in range(GRID_WIDTH)]
         self.note_lookup = np.full((GRID_WIDTH,GRID_HEIGHT), -1, dtype=int)
         self.last_downpress_by_row = np.full((GRID_HEIGHT), -1, dtype=int)
+        self.set_scale(0)
 
     def on_grid_ready(self):
         print('Grid ready')
@@ -66,8 +75,26 @@ class GridApp(monome.GridApp):
         print('Grid disconnected')
 
 
+    def set_scale(self, delta: int):
+        if self.held_note >= 0:
+            self.selected_scale_note = names_from_interval[self.held_note % 12]
+            print(f'Selected note {self.selected_scale_note}')
+
+        self.selected_scale_index = clamp(self.selected_scale_index+delta, 0, len(SCALES)-1)
+        print(f'Selected scale {self.selected_scale_note} {SCALES[self.selected_scale_index]}')
+        if SCALES[self.selected_scale_index] == 'chromatic':
+            pitches = range(128)
+        else:
+            semitones = scales.scale(self.selected_scale_note, SCALES[self.selected_scale_index])
+            pitches = []
+            for octave in range(NUM_OCTAVES):
+                for semitone in semitones:
+                    pitches.append((octave * 12) + semitone.semitones_above_middle_c)
+        self.available_pitches = pitches
+        self.last_downpress_by_row = np.full((GRID_HEIGHT), -1, dtype=int)
+
     def apply_vertical_scroll(self, delta: int):
-        self.lowest_displayed_pitch_index = min(max(self.lowest_displayed_pitch_index+delta, 0),128-GRID_HEIGHT)
+        self.lowest_displayed_pitch_index = clamp(self.lowest_displayed_pitch_index+delta, 0, len(self.available_pitches)-GRID_HEIGHT)
 
     def apply_horizontal_scroll(self, delta: int):
         self.earliest_displayed_time = max(self.earliest_displayed_time+delta, 0)
@@ -75,11 +102,16 @@ class GridApp(monome.GridApp):
     def apply_horizontal_zoom(self, delta: int):
         if delta == 0:
             return
-        self.zoom_index = min(max(self.zoom_index - delta, 0), len(ZOOM_LEVELS)-1)
+        self.zoom_index = np.clip(self.zoom_index - delta, 0, len(ZOOM_LEVELS)-1)
         self.zoom = ZOOM_LEVELS[self.zoom_index]
 
 
     def on_grid_key(self, x: int, y: int, s: int):
+        if s == 1:
+            self.held_note = self.available_pitches[self.lowest_displayed_pitch_index + (GRID_HEIGHT-1-y)]
+        else:
+            self.held_note = -1
+
         last_downpress = self.last_downpress_by_row[y].item()
 
         if s == 1 and last_downpress >= 0:
@@ -91,7 +123,7 @@ class GridApp(monome.GridApp):
                     return
             self.create_note(start, end, y)
             self.last_downpress_by_row[y] = -1
-        elif s == 0:
+        elif s == 0 and last_downpress >= 0:
             if last_downpress == x: # same key released
                 existing_note_idx = self.note_lookup[x,7-y].item()
                 if existing_note_idx >= 0:
@@ -167,7 +199,8 @@ class GridApp(monome.GridApp):
                 notes = self.get_notes(track)
 
             self.update_view_with_notes(notes)
-            self.update_view_with_play_position()
+            if RPR.GetPlayState() == 1:
+                self.update_view_with_play_position()
             self.render()
 
             previous_hash = hash
@@ -220,7 +253,7 @@ class Arc(monome.ArcApp):
         print('Arc ready')
         for n in range(0, 4):
             self.arc.ring_all(n, 0)
-            self.on_arc_delta(n, 0)
+            self.set_value(n, self.value[n])
 
 
     def on_arc_disconnect(self):
@@ -252,6 +285,9 @@ class Arc(monome.ArcApp):
         val = self.value[ring]
 
         self.set_value(ring, val)
+
+        if(ring == 0):
+            self.grid.set_scale(change)
 
         if(ring == 1):
             self.grid.apply_vertical_scroll(change)

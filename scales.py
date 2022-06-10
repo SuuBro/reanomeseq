@@ -1,6 +1,7 @@
 import math
 
 scale_intervals = {
+    "chromatic": [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
     "blues": [3, 2, 1, 1, 3, 2],
     "dorian": [2, 1, 2, 2, 2, 1, 2],
     "major": [2, 2, 1, 2, 2, 2, 1],
