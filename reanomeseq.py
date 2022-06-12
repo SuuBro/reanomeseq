@@ -3,6 +3,7 @@
 # Test for a push-button monome arc
 
 import asyncio
+import datetime
 import monome
 import reapy
 import numpy as np
@@ -12,6 +13,7 @@ import sys
 import time
 
 from collections import deque
+from datetime import datetime, timedelta
 from display import *
 from reapy import reascript_api as RPR
 from scales import names_from_interval
@@ -73,6 +75,7 @@ class GridApp(monome.GridApp):
         self.earliest_displayed_time = 0
         self.lowest_displayed_pitch_index = 45
         self.held_note = -1
+        self.held_down_time = datetime.utcnow()
         self.selected_scale_note = 'C'
         self.scale_select = False
         self.selected_scale_index = 0
@@ -140,9 +143,10 @@ class GridApp(monome.GridApp):
             self.held_note = -1
             self.scale_select = False
 
+        held_down_time = datetime.utcnow() - self.held_down_time
         last_downpress = self.last_downpress_by_row[y].item()
 
-        if s == 1 and last_downpress >= 0:
+        if s == 1 and last_downpress >= 0 and last_downpress != x:
             start = min(x, last_downpress)
             end = max(x, last_downpress)+1
             for i in range(start,end):
@@ -151,7 +155,7 @@ class GridApp(monome.GridApp):
                     return
             self.create_note(start, end, y)
             self.last_downpress_by_row[y] = -1
-        elif s == 0 and last_downpress >= 0:
+        elif s == 0 and last_downpress >= 0 and held_down_time < timedelta(seconds=1):
             if last_downpress == x: # same key released
                 existing_note_idx = self.note_lookup[x,7-y].item()
                 if existing_note_idx >= 0:
@@ -159,8 +163,11 @@ class GridApp(monome.GridApp):
                 else:
                     self.create_note(x, x+1, y)
             self.last_downpress_by_row[y] = -1
+        elif s == 0 and last_downpress >= 0:
+            self.last_downpress_by_row[y] = -1
         elif s == 1:
             self.last_downpress_by_row[y] = x
+            self.held_down_time = datetime.utcnow()
 
 
     def draw_note(self, start: int, end: int, row: int, starts_before_view: bool):
