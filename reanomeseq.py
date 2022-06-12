@@ -26,64 +26,126 @@ NUM_OCTAVES = 10
 ZOOM_LEVELS = [60, 60, 60, 120, 120, 120, 240, 240, 240, 480, 480, 480, 960, 960, 960]
 SCALES = ['chromatic', 'chromatic', 'chromatic', 'major', 'major', 'major', 'minor', 'minor', 'minor']
 
-LETTER_A = [[0,  0,  0, 15, 15,  0,  0,  0],
-            [0,  0, 15, 15, 15, 15,  0,  0],
-            [0,  0, 15,  0,  0, 15,  0,  0],
-            [0,  0, 15,  0,  0, 15,  0,  0],
-            [0,  0, 15, 15, 15, 15,  0,  0],
-            [0,  0, 15, 15, 15, 15,  0,  0],
-            [0,  0, 15,  0,  0, 15,  0,  0],
-            [0,  0, 15,  0,  0, 15,  0,  0]]
+EMPTY =    [[ 0,  0,  0,  0,  0,  0,  0,  0],
+            [ 0,  0,  0,  0,  0,  0,  0,  0],
+            [ 0,  0,  0,  0,  0,  0,  0,  0],
+            [ 0,  0,  0,  0,  0,  0,  0,  0]]
 
-LETTER_AS = [[ 0, 15, 15,  0,  0,  0,  0,  0],
-             [15, 15, 15, 15,  0, 15,  0, 15],
-             [15,  0,  0, 15, 15, 15, 15, 15],
-             [15,  0,  0, 15,  0, 15,  0, 15],
-             [15, 15, 15, 15, 15, 15, 15, 15],
-             [15, 15, 15, 15,  0, 15,  0, 15],
-             [15,  0,  0, 15,  0,  0,  0,  0],
-             [15,  0,  0, 15,  0,  0,  0,  0]]
+SHARP    = [[0, 15,  0, 15,  0,  0,  0,  0],
+            [0,  0, 15,  0,  0,  0,  0,  0],
+            [0, 15,  0, 15,  0,  0,  0,  0],
+            [0,  0,  0,  0,  0,  0,  0,  0],]
 
-LETTER_B = [[0,  0, 15, 15, 15,  0,  0,  0],
-            [0,  0, 15,  0,  0, 15,  0,  0],
-            [0,  0, 15,  0,  0, 15,  0,  0],
-            [0,  0, 15,  0, 15,  0,  0,  0],
-            [0,  0, 15, 15, 15, 15,  0,  0],
-            [0,  0, 15,  0,  0, 15,  0,  0],
-            [0,  0, 15,  0,  0, 15,  0,  0],
-            [0,  0, 15, 15, 15,  0,  0,  0]]
+MAJOR    = [[0, 15,  0, 15,  0,  0,  0,  0],
+            [0, 15, 15, 15,  0, 15, 15, 15],
+            [0, 15,  0, 15,  0,  0, 15,  0],
+            [0, 15,  0, 15,  0, 15, 15,  0],]
 
-LETTER_C = [[0,  0, 15, 15, 15, 15,  0,  0 ],
-            [0,  0, 15, 15, 15, 15,  0,  0 ],
-            [0,  0, 15, 15,  0,  0,  0,  0 ],
-            [0,  0, 15, 15,  0,  0,  0,  0 ],
-            [0,  0, 15, 15,  0,  0,  0,  0 ],
-            [0,  0, 15, 15,  0,  0,  0,  0 ],
-            [0,  0, 15, 15, 15, 15,  0,  0 ],
-            [0,  0, 15, 15, 15, 15,  0,  0 ]]
+MINOR    = [[0, 15,  0, 15,  0,  0,  0,  0],
+            [0, 15, 15, 15,  0, 15,  0, 15],
+            [0, 15,  0, 15,  0, 15, 15, 15],
+            [0, 15,  0, 15,  0, 15,  0, 15],]
 
-LETTER_CS = [[15, 15, 15, 15,  0,  0,  0,  0],
-             [15, 15, 15, 15,  0, 15,  0, 15],
-             [15, 15,  0,  0, 15, 15, 15, 15],
-             [15, 15,  0,  0,  0, 15,  0, 15],
-             [15, 15,  0,  0, 15, 15, 15, 15],
-             [15, 15,  0,  0,  0, 15,  0, 15],
-             [15, 15, 15, 15,  0,  0,  0,  0],
-             [15, 15, 15, 15,  0,  0,  0,  0]]
+SCALE_MAPS = {
+    'chromatic' : EMPTY,
+    'major': MAJOR,
+    'minor': MINOR
+}
+
+
+
+
+LETTER_A = [[ 0, 15, 15,  0],
+            [15, 15, 15, 15],
+            [15,  0,  0, 15],
+            [15,  0,  0, 15],
+            [15, 15, 15, 15],
+            [15, 15, 15, 15],
+            [15,  0,  0, 15],
+            [15,  0,  0, 15]]
+
+LETTER_B = [[15, 15, 15,  0],
+            [15,  0,  0, 15],
+            [15,  0,  0, 15],
+            [15,  0, 15,  0],
+            [15, 15, 15, 15],
+            [15,  0,  0, 15],
+            [15,  0,  0, 15],
+            [15, 15, 15,  0]]
+
+LETTER_C = [[15, 15, 15, 15],
+            [15, 15, 15, 15],
+            [15, 15,  0,  0],
+            [15, 15,  0,  0],
+            [15, 15,  0,  0],
+            [15, 15,  0,  0],
+            [15, 15, 15, 15],
+            [15, 15, 15, 15]]
+
+LETTER_D = [[15, 15, 15,  0],
+            [15,  0,  0, 15],
+            [15,  0,  0, 15],
+            [15,  0,  0, 15],
+            [15,  0,  0, 15],
+            [15,  0,  0, 15],
+            [15,  0,  0, 15],
+            [15, 15, 15,  0]]
+
+LETTER_E = [[15, 15, 15, 15],
+            [15, 15, 15, 15],
+            [15, 15,  0,  0],
+            [15, 15, 15,  0],
+            [15, 15, 15,  0],
+            [15, 15,  0,  0],
+            [15, 15, 15, 15],
+            [15, 15, 15, 15]]
+
+LETTER_F = [[15, 15, 15, 15],
+            [15, 15, 15, 15],
+            [15,  0,  0,  0],
+            [15, 15, 15,  0],
+            [15, 15, 15,  0],
+            [15,  0,  0,  0],
+            [15,  0,  0,  0],
+            [15,  0,  0,  0]]
+
+LETTER_G = [[ 0, 15, 15, 15],
+            [15,  0,  0,  0],
+            [15,  0,  0,  0],
+            [15,  0,  0,  0],
+            [15,  0, 15, 15],
+            [15,  0,  0, 15],
+            [15,  0,  0, 15],
+            [ 0, 15, 15, 15]]
 
 NOTE_DISPLAY = {
     0:  LETTER_C,
-    1:  LETTER_CS,
-    2: "D",
-    3: "D#",
-    4: "E",
-    5: "F",
-    6: "F#",
-    7: "G",
-    8: "G#",
+    1:  LETTER_C,
+    2:  LETTER_D,
+    3:  LETTER_D,
+    4:  LETTER_E,
+    5:  LETTER_F,
+    6:  LETTER_F,
+    7:  LETTER_G,
+    8:  LETTER_G,
     9:  LETTER_A,
-    10: LETTER_AS,
+    10: LETTER_A,
     11: LETTER_B
+}
+
+IS_SHARP = {
+    0:  False,
+    1:  True,
+    2:  False,
+    3:  True,
+    4:  False,
+    5:  False,
+    6:  True,
+    7:  False,
+    8:  True,
+    9:  False,
+    10: True,
+    11: False,
 }
 
 
@@ -124,8 +186,8 @@ class GridApp(monome.GridApp):
         self.earliest_displayed_time = 0
         self.lowest_displayed_pitch_index = 45
         self.held_note = -1
-        self.held_note_x = -1
         self.selected_scale_note = 'C'
+        self.scale_select = False
         self.selected_scale_index = 0
         self.available_pitches = range(128)
         self.view = [[0]*GRID_HEIGHT for _ in range(GRID_WIDTH)]
@@ -144,6 +206,7 @@ class GridApp(monome.GridApp):
 
 
     def set_scale(self, delta: int):
+        self.scale_select = True
         if self.held_note >= 0:
             self.selected_scale_note = names_from_interval[self.held_note % 12]
 
@@ -186,13 +249,12 @@ class GridApp(monome.GridApp):
         return self.available_pitches[self.lowest_displayed_pitch_index + (GRID_HEIGHT-1-y)]
 
     def on_grid_key(self, x: int, y: int, s: int):
-        if s == 1:
+        if s == 1 and x == 0:
             self.held_note = self.y_to_pitch(y)
-            self.held_note_x = x
             print(f'{names_from_interval[self.held_note % 12]}{((self.held_note - self.held_note%12)//12)-1} ({self.held_note})')
         else:
             self.held_note = -1
-            self.held_note_x = -1
+            self.scale_select = False
 
         last_downpress = self.last_downpress_by_row[y].item()
 
@@ -265,13 +327,17 @@ class GridApp(monome.GridApp):
 
 
     def render(self):
-        if self.held_note_x >= 0 and self.held_note_x >= GRID_WIDTH // 2:
-            self.grid.led_level_map(0, 0, NOTE_DISPLAY[self.held_note % 12])
-        else:
-            self.grid.led_level_map(0, 0, [[row[i] for row in self.view[:8]] for i in range(len(self.view[:8][0]))])
+        map = np.array([[row[i] for row in self.view[:8]] for i in range(len(self.view[:8][0]))])
 
-        if self.held_note_x >= 0 and self.held_note_x < GRID_WIDTH // 2:
-            self.grid.led_level_map(8, 0, NOTE_DISPLAY[self.held_note % 12])
+        if self.held_note >= 0:
+            map[0:8, 4:8] = np.array(NOTE_DISPLAY[self.held_note % 12])
+
+        self.grid.led_level_map(0, 0, map.tolist())
+
+        if self.held_note >= 0:
+            top_half = np.array(SHARP if IS_SHARP[self.held_note % 12] else EMPTY)
+            bottom_half = np.array(SCALE_MAPS[SCALES[self.selected_scale_index]] if self.scale_select else EMPTY)
+            self.grid.led_level_map(8, 0, np.append(top_half, bottom_half, axis=0).tolist())
         else:
             self.grid.led_level_map(8, 0, [[row[i] for row in self.view[8:]] for i in range(len(self.view[8:][0]))])
 
