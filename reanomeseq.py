@@ -31,8 +31,8 @@ PLAY_POS_BRIGHTNESS_LOW =  10
 PLAY_POS_BRIGHTNESS_HIGH =  15
 
 NUM_OCTAVES = 10
-ZOOM_LEVELS = [60, 60, 60, 120, 120, 120, 240, 240, 240, 480, 480, 480, 960, 960, 960]
-SCALES = ['chromatic', 'chromatic', 'chromatic', 'major', 'major', 'major', 'minor', 'minor', 'minor']
+ZOOM_LEVELS = [60, 120, 240, 480, 960]
+SCALES = ['chromatic', 'major', 'minor']
 
 keep_going = True
 
@@ -69,8 +69,9 @@ class GridApp(monome.GridApp):
     def __init__(self):
         super().__init__(VaribrightGrid())
         signal.signal(signal.SIGINT, lambda _, __: self.shutdown())
+        self.arc = None
         self.keep_going = True
-        self.zoom_index = 10
+        self.zoom_index = 2
         self.zoom = ZOOM_LEVELS[self.zoom_index]
         self.earliest_displayed_time = 0
         self.lowest_displayed_pitch_index = 45
@@ -93,13 +94,12 @@ class GridApp(monome.GridApp):
     def on_grid_disconnect(self):
         print('Grid disconnected')
 
-    def set_scale(self, delta: int):
+    def set_scale(self, scale_index: int):
         self.scale_select = True
         if self.held_note >= 0:
             self.selected_scale_note = names_from_interval[self.held_note % 12]
 
-        self.selected_scale_index = clamp(self.selected_scale_index+delta, 0, len(SCALES)-1)
-        print(f'Selected scale {self.selected_scale_note} {SCALES[self.selected_scale_index]}')
+        self.selected_scale_index = scale_index
         if SCALES[self.selected_scale_index] == 'chromatic':
             pitches = range(128)
         else:
@@ -122,15 +122,17 @@ class GridApp(monome.GridApp):
 
 
     def apply_vertical_scroll(self, delta: int):
+        before = self.lowest_displayed_pitch_index
         self.lowest_displayed_pitch_index = clamp(self.lowest_displayed_pitch_index+delta, 0, len(self.available_pitches)-GRID_HEIGHT)
+        return self.lowest_displayed_pitch_index - before
 
     def apply_horizontal_scroll(self, delta: int):
+        before = self.earliest_displayed_time
         self.earliest_displayed_time = max(self.earliest_displayed_time+delta, 0)
+        return self.earliest_displayed_time - before
 
-    def apply_horizontal_zoom(self, delta: int):
-        if delta == 0:
-            return
-        self.set_zoom_index(np.clip(self.zoom_index - delta, 0, len(ZOOM_LEVELS)-1))
+    def apply_horizontal_zoom(self, zoom_index: int):
+        self.set_zoom_index(zoom_index)
 
     def y_to_pitch(self, y: int):
         return self.available_pitches[self.lowest_displayed_pitch_index + (GRID_HEIGHT-1-y)]
@@ -337,59 +339,79 @@ class Arc(monome.ArcApp):
     def __init__(self, grid: GridApp):
         super().__init__()
         self.grid = grid
-        self.value = [0, 64, 64, 64]
-        self.maxVal = 127
-        self.offset = 0
-
+        self.options = [3, 0, 0, 5]
+        self.max = [59, 64, 64, 49]
+        self.value = [0, 0, 0, 0]
 
     def on_arc_ready(self):
         print('Arc ready')
-        for n in range(0, 4):
-            self.arc.ring_all(n, 0)
-            self.set_value(n, self.value[n])
+        self.value[3] = self.grid.zoom_index
 
+        self.set_option(0, self.value[0])
+        self.spinner(1, self.value[1])
+        self.spinner(2, self.value[2])
+        self.set_option(3, self.value[3])
 
     def on_arc_disconnect(self):
         print('Arc disconnected')
 
-
-    def set_value(self, ring, value):
-        start = 5
-        end = 59
-        span = end-start
-        val = (value / self.maxVal * span) + start
-
+    def spinner(self, ring, value):
         values = [0] * 64
-        for i in range(start, int(val)+1):
-            values[i] = 15
-
-        if(val - int(val) >= 0.4):
-            values[int(val)+1] = 7
+        for i in range(0, 64):
+            if (i - value) % 8 == 0:
+                values[i] = 15
+            if (i + 1 - value) % 8 == 0:
+                values[i] = 12
+            if (i + 2 - value) % 8 == 0:
+                values[i] = 9
+            if (i + 3 - value) % 8 == 0:
+                values[i] = 6
+            if (i + 4 - value) % 8 == 0:
+                values[i] = 3
 
         offset = deque(values)
         offset.rotate(32)
         self.arc.ring_map(ring, offset)
 
+    def set_option(self, ring, value):
+        start = 5 if self.max[ring] == 3 else 5
+        end = 59 if self.max[ring] == 3 else 60
+        span = end-start
+        option = int((value / (self.max[ring]+1)) * self.options[ring])
+        leds_per_option = span // self.options[ring]
+        first = start + (leds_per_option * option)
+        last = first + leds_per_option
+
+        values = [0] * 64
+        for i in range(start, end):
+            if i >= first and i < last:
+                values[i] = 15
+
+        offset = deque(values)
+        offset.rotate(32)
+        self.arc.ring_map(ring, offset)
+        return option
+
 
     def on_arc_delta(self, ring, delta):
-        change = delta # if (delta > 2 or delta < -2) else delta/2
-
-        self.value[ring] = min(max(self.value[ring] + change, 0), self.maxVal)
-        val = self.value[ring]
-
-        self.set_value(ring, val)
 
         if(ring == 0):
-            self.grid.set_scale(change)
+            self.value[ring] = clamp(self.value[ring] + delta, 0, self.max[ring])
+            self.grid.set_scale(self.set_option(ring, self.value[ring]))
 
         if(ring == 1):
-            self.grid.apply_vertical_scroll(change)
+            change = self.grid.apply_vertical_scroll(delta)
+            self.value[ring] = ((self.value[ring] + change) % self.max[ring])
+            self.spinner(ring, self.value[ring])
 
         if(ring == 2):
-            self.grid.apply_horizontal_scroll(change)
+            change = self.grid.apply_horizontal_scroll(delta)
+            self.value[ring] = ((self.value[ring] + change) % self.max[ring])
+            self.spinner(ring, self.value[ring])
 
         if(ring == 3):
-            self.grid.apply_horizontal_zoom(change)
+            self.value[ring] = clamp(self.value[ring] + delta, 0, self.max[ring])
+            self.grid.apply_horizontal_zoom(self.set_option(ring, self.value[ring]))
 
 
     def on_arc_key(self, ring, s):
