@@ -31,7 +31,7 @@ PLAY_POS_BRIGHTNESS_LOW =  10
 PLAY_POS_BRIGHTNESS_HIGH =  15
 
 NUM_OCTAVES = 10
-ZOOM_LEVELS = [60, 120, 240, 480, 960]
+ZOOM_LEVELS = [960, 480, 240, 120, 60]
 SCALES = ['chromatic', 'major', 'minor']
 
 keep_going = True
