@@ -52,9 +52,6 @@ SCALE_MAPS = {
     'minor': MINOR
 }
 
-
-
-
 LETTER_A = [[ 0, 15, 15,  0],
             [15, 15, 15, 15],
             [15,  0,  0, 15],
@@ -291,7 +288,13 @@ class GridApp(monome.GridApp):
 
     def update_view_with_notes(self, notes: List[Note]):
         self.view = [[self.divider_brightness(i+self.earliest_displayed_time) for i in range(GRID_WIDTH)]] * GRID_HEIGHT
-        self.view = [[row[i] for row in self.view] for i in range(len(self.view[0]))]
+        self.view = [[row[i] for row in self.view] for i in range(len(self.view[0]))] # Rotate
+
+        semitones = scales.interval_from_names[self.selected_scale_note]
+        for i in range(len(self.view)):
+            for j in range(len(self.view[i])):
+                if self.y_to_pitch(j) % 12 == semitones:
+                     self.view[i][j] += 2
 
         self.note_lookup = np.full((GRID_WIDTH,GRID_HEIGHT), -1, dtype=int)
 
@@ -305,8 +308,6 @@ class GridApp(monome.GridApp):
                 note_row = note_index - self.lowest_displayed_pitch_index
             except ValueError:
                 continue # not not displayed as not in scale
-
-            #print(f'note.start: {note.start:.2f}  note.end: {note.end:.2f}  self.zoom: {self.zoom}  note_start: {note_start:.2f}   note_end: {note_end:.2f}')
 
             if note_end <= 0 or note_start > GRID_WIDTH-1 or note_row < 0 or note_row > GRID_HEIGHT-1:
                 continue # outside display
@@ -347,19 +348,25 @@ class GridApp(monome.GridApp):
         notes = []
 
         while True:
-            track = RPR.GetSelectedTrack(0, 0)
-
-            _, _, _, hash, _ = RPR.MIDI_GetTrackHash(track, True, "", 100)
+            track, hash, play_state = self.get_track_state()
             if hash != previous_hash:
                 notes = self.get_notes(track)
 
             self.update_view_with_notes(notes)
-            if RPR.GetPlayState() == 1:
+            if play_state == 1:
                 self.update_view_with_play_position()
             self.render()
 
             previous_hash = hash
-            await asyncio.sleep(0.05)
+            await asyncio.sleep(0.001)
+
+    @reapy.inside_reaper()
+    def get_track_state(self):
+        track = RPR.GetSelectedTrack(0, 0)
+        _, _, _, hash, _ = RPR.MIDI_GetTrackHash(track, True, "", 100)
+        play_state = RPR.GetPlayState()
+
+        return track, hash, play_state
 
     @reapy.inside_reaper()
     def create_note(self, start: float, end: float, row: int):
