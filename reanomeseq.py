@@ -7,8 +7,12 @@ import monome
 import reapy
 import numpy as np
 import scales
+import signal
+import sys
+import time
 
 from collections import deque
+from display import *
 from reapy import reascript_api as RPR
 from scales import names_from_interval
 from typing import List, Tuple
@@ -28,125 +32,7 @@ NUM_OCTAVES = 10
 ZOOM_LEVELS = [60, 60, 60, 120, 120, 120, 240, 240, 240, 480, 480, 480, 960, 960, 960]
 SCALES = ['chromatic', 'chromatic', 'chromatic', 'major', 'major', 'major', 'minor', 'minor', 'minor']
 
-EMPTY =    [[ 0,  0,  0,  0,  0,  0,  0,  0],
-            [ 0,  0,  0,  0,  0,  0,  0,  0],
-            [ 0,  0,  0,  0,  0,  0,  0,  0],
-            [ 0,  0,  0,  0,  0,  0,  0,  0]]
-
-SHARP    = [[0, 15,  0, 15,  0,  0,  0,  0],
-            [0,  0, 15,  0,  0,  0,  0,  0],
-            [0, 15,  0, 15,  0,  0,  0,  0],
-            [0,  0,  0,  0,  0,  0,  0,  0],]
-
-MAJOR    = [[0, 15,  0, 15,  0,  0,  0,  0],
-            [0, 15, 15, 15,  0, 15, 15, 15],
-            [0, 15,  0, 15,  0,  0, 15,  0],
-            [0, 15,  0, 15,  0, 15, 15,  0],]
-
-MINOR    = [[0, 15,  0, 15,  0,  0,  0,  0],
-            [0, 15, 15, 15,  0, 15,  0, 15],
-            [0, 15,  0, 15,  0, 15, 15, 15],
-            [0, 15,  0, 15,  0, 15,  0, 15],]
-
-SCALE_MAPS = {
-    'chromatic' : EMPTY,
-    'major': MAJOR,
-    'minor': MINOR
-}
-
-LETTER_A = [[ 0, 15, 15,  0],
-            [15, 15, 15, 15],
-            [15,  0,  0, 15],
-            [15,  0,  0, 15],
-            [15, 15, 15, 15],
-            [15, 15, 15, 15],
-            [15,  0,  0, 15],
-            [15,  0,  0, 15]]
-
-LETTER_B = [[15, 15, 15,  0],
-            [15,  0,  0, 15],
-            [15,  0,  0, 15],
-            [15,  0, 15,  0],
-            [15, 15, 15, 15],
-            [15,  0,  0, 15],
-            [15,  0,  0, 15],
-            [15, 15, 15,  0]]
-
-LETTER_C = [[15, 15, 15, 15],
-            [15, 15, 15, 15],
-            [15, 15,  0,  0],
-            [15, 15,  0,  0],
-            [15, 15,  0,  0],
-            [15, 15,  0,  0],
-            [15, 15, 15, 15],
-            [15, 15, 15, 15]]
-
-LETTER_D = [[15, 15, 15,  0],
-            [15,  0,  0, 15],
-            [15,  0,  0, 15],
-            [15,  0,  0, 15],
-            [15,  0,  0, 15],
-            [15,  0,  0, 15],
-            [15,  0,  0, 15],
-            [15, 15, 15,  0]]
-
-LETTER_E = [[15, 15, 15, 15],
-            [15, 15, 15, 15],
-            [15, 15,  0,  0],
-            [15, 15, 15,  0],
-            [15, 15, 15,  0],
-            [15, 15,  0,  0],
-            [15, 15, 15, 15],
-            [15, 15, 15, 15]]
-
-LETTER_F = [[15, 15, 15, 15],
-            [15, 15, 15, 15],
-            [15,  0,  0,  0],
-            [15, 15, 15,  0],
-            [15, 15, 15,  0],
-            [15,  0,  0,  0],
-            [15,  0,  0,  0],
-            [15,  0,  0,  0]]
-
-LETTER_G = [[ 0, 15, 15, 15],
-            [15,  0,  0,  0],
-            [15,  0,  0,  0],
-            [15,  0,  0,  0],
-            [15,  0, 15, 15],
-            [15,  0,  0, 15],
-            [15,  0,  0, 15],
-            [ 0, 15, 15, 15]]
-
-NOTE_DISPLAY = {
-    0:  LETTER_C,
-    1:  LETTER_C,
-    2:  LETTER_D,
-    3:  LETTER_D,
-    4:  LETTER_E,
-    5:  LETTER_F,
-    6:  LETTER_F,
-    7:  LETTER_G,
-    8:  LETTER_G,
-    9:  LETTER_A,
-    10: LETTER_A,
-    11: LETTER_B
-}
-
-IS_SHARP = {
-    0:  False,
-    1:  True,
-    2:  False,
-    3:  True,
-    4:  False,
-    5:  False,
-    6:  True,
-    7:  False,
-    8:  True,
-    9:  False,
-    10: True,
-    11: False,
-}
-
+keep_going = True
 
 def clamp(v, minv, maxv):
     return max(min(maxv, v), minv)
@@ -180,6 +66,8 @@ class VaribrightGrid(monome.Grid):
 class GridApp(monome.GridApp):
     def __init__(self):
         super().__init__(VaribrightGrid())
+        signal.signal(signal.SIGINT, lambda _, __: self.shutdown())
+        self.keep_going = True
         self.zoom_index = 10
         self.zoom = ZOOM_LEVELS[self.zoom_index]
         self.earliest_displayed_time = 0
@@ -199,10 +87,8 @@ class GridApp(monome.GridApp):
         self.grid.led_all(0)
         asyncio.create_task(self.reaper_loop())
 
-
     def on_grid_disconnect(self):
         print('Grid disconnected')
-
 
     def set_scale(self, delta: int):
         self.scale_select = True
@@ -349,7 +235,7 @@ class GridApp(monome.GridApp):
         previous_track = None
         notes = []
 
-        while True:
+        while self.keep_going:
             track, hash, play_state = self.reaper_state()
 
             if track != previous_track:
@@ -366,7 +252,10 @@ class GridApp(monome.GridApp):
             self.store_track_state(track)
             previous_hash = hash
             previous_track = track
-            await asyncio.sleep(0.001)
+
+            await asyncio.sleep(0.05)
+
+        print("reaper_loop complete.")
 
     def restore_int(self, key, set):
         value = RPR.GetExtState(REANOMESEQ, key)
@@ -428,6 +317,12 @@ class GridApp(monome.GridApp):
             notes.append(Note(i, start, end, pitch, vel, chan))
 
         return notes
+
+    def shutdown(self):
+        print("Shutdown...")
+        self.keep_going = False
+        time.sleep(1)
+        sys.exit(0)
 
 
 class Arc(monome.ArcApp):
@@ -493,7 +388,6 @@ class Arc(monome.ArcApp):
     def on_arc_key(self, ring, s):
         print(f'Ring: {ring} Pressed: {s > 0}')
 
-
 async def main():
     loop = asyncio.get_running_loop()
     grid = GridApp()
@@ -511,7 +405,6 @@ async def main():
 
     await serialosc.connect()
     await loop.create_future()
-
 
 if __name__ == '__main__':
     asyncio.run(main())
