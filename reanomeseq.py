@@ -13,6 +13,8 @@ from reapy import reascript_api as RPR
 from scales import names_from_interval
 from typing import List, Tuple
 
+REANOMESEQ = 'reanomeseq'
+
 GRID_HEIGHT = 8
 GRID_WIDTH = 16
 
@@ -239,8 +241,7 @@ class GridApp(monome.GridApp):
     def apply_horizontal_zoom(self, delta: int):
         if delta == 0:
             return
-        self.zoom_index = np.clip(self.zoom_index - delta, 0, len(ZOOM_LEVELS)-1)
-        self.zoom = ZOOM_LEVELS[self.zoom_index]
+        self.set_zoom_index(np.clip(self.zoom_index - delta, 0, len(ZOOM_LEVELS)-1))
 
     def y_to_pitch(self, y: int):
         return self.available_pitches[self.lowest_displayed_pitch_index + (GRID_HEIGHT-1-y)]
@@ -345,10 +346,15 @@ class GridApp(monome.GridApp):
 
     async def reaper_loop(self):
         previous_hash = ""
+        previous_track = None
         notes = []
 
         while True:
-            track, hash, play_state = self.get_track_state()
+            track, hash, play_state = self.reaper_state()
+
+            if track != previous_track:
+                self.load_track_state(track)
+
             if hash != previous_hash:
                 notes = self.get_notes(track)
 
@@ -357,15 +363,38 @@ class GridApp(monome.GridApp):
                 self.update_view_with_play_position()
             self.render()
 
+            self.store_track_state(track)
             previous_hash = hash
+            previous_track = track
             await asyncio.sleep(0.001)
 
+    def restore_int(self, key, set):
+        value = RPR.GetExtState(REANOMESEQ, key)
+        if(value):
+            set(int(value))
+
+    def set_lowest_displayed_pitch_index(self, val: int):
+        self.lowest_displayed_pitch_index = val
+
+    def set_zoom_index(self, val: int):
+        self.zoom_index = val
+        self.zoom = ZOOM_LEVELS[self.zoom_index]
+
     @reapy.inside_reaper()
-    def get_track_state(self):
+    def load_track_state(self, track):
+        self.restore_int("lowpitch:"+track, self.set_lowest_displayed_pitch_index)
+        self.restore_int("zoom:"+track, self.set_zoom_index)
+
+    @reapy.inside_reaper()
+    def store_track_state(self, track):
+        RPR.SetExtState(REANOMESEQ, "lowpitch:"+track, str(self.lowest_displayed_pitch_index), True)
+        RPR.SetExtState(REANOMESEQ, "zoom:"+track, str(self.zoom_index), True)
+
+    @reapy.inside_reaper()
+    def reaper_state(self):
         track = RPR.GetSelectedTrack(0, 0)
         _, _, _, hash, _ = RPR.MIDI_GetTrackHash(track, True, "", 100)
         play_state = RPR.GetPlayState()
-
         return track, hash, play_state
 
     @reapy.inside_reaper()
