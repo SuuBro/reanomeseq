@@ -138,6 +138,9 @@ class GridApp(monome.GridApp):
         return self.available_pitches[self.lowest_displayed_pitch_index + (GRID_HEIGHT-1-y)]
 
     def on_grid_key(self, x: int, y: int, s: int):
+        if s == 0:
+            self.cancel_preview(y)
+
         if s == 1 and x == 0:
             self.held_note = self.y_to_pitch(y)
             print(f'{names_from_interval[self.held_note % 12]}{((self.held_note - self.held_note%12)//12)-1} ({self.held_note})')
@@ -168,6 +171,7 @@ class GridApp(monome.GridApp):
         elif s == 0 and last_downpress >= 0:
             self.last_downpress_by_row[y] = -1
         elif s == 1:
+            self.preview_note(y)
             self.last_downpress_by_row[y] = x
             self.held_down_time = datetime.utcnow()
 
@@ -306,6 +310,16 @@ class GridApp(monome.GridApp):
         pitch = self.y_to_pitch(row)
 
         RPR.MIDI_InsertNote(take, False, False, startppqpos, endppqpos-1, 0, pitch, 96, False)
+
+    @reapy.inside_reaper()
+    def preview_note(self, row: int):
+        for i in range(8):
+            RPR.StuffMIDIMessage(0, 144+i, self.y_to_pitch(row), 96)
+
+    @reapy.inside_reaper()
+    def cancel_preview(self, row: int):
+        for i in range(8):
+            RPR.StuffMIDIMessage(0, 144+i, self.y_to_pitch(row), 0)
 
     @reapy.inside_reaper()
     def delete_note(self, note_index: int):
